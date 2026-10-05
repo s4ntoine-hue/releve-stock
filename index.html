@@ -1,0 +1,442 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0d6b73"></head><body><title>Relevé Stock OPI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: mobile-first, header + progress, three tabs (Scan, Liste, Envoi) fixed at the bottom. */
+:root{
+  --bg:#eef0f1; --surface:#ffffff; --surface2:#e4e8ea; --fg:#14201f; --muted:#5b6b69; --line:#d3dadb;
+  --accent:#0d6b73; --accent-fg:#ffffff; --accent-soft:#d6ecee;
+  --ok:#1f7a4d; --ok-soft:#d9efe3; --warn:#9a5b00; --warn-soft:#fbe9c8; --bad:#b3263b; --bad-soft:#f8dadf;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Instrument Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1819; --surface:#172324; --surface2:#1f2f31; --fg:#e6efee; --muted:#93a8a6; --line:#2a3d3f;
+  --accent:#49c0cb; --accent-fg:#06171a; --accent-soft:#12383d;
+  --ok:#5fd29b; --ok-soft:#14352a; --warn:#f0b74f; --warn-soft:#3a2c0e; --bad:#ff7d8f; --bad-soft:#401a22; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1819; --surface:#172324; --surface2:#1f2f31; --fg:#e6efee; --muted:#93a8a6; --line:#2a3d3f;
+  --accent:#49c0cb; --accent-fg:#06171a; --accent-soft:#12383d;
+  --ok:#5fd29b; --ok-soft:#14352a; --warn:#f0b74f; --warn-soft:#3a2c0e; --bad:#ff7d8f; --bad-soft:#401a22; color-scheme:dark}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.4;padding-inline:16px;padding-block:0 96px}
+.wrap{max-width:720px;margin-inline:auto}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 10px;border-bottom:1px solid var(--line);margin-inline:-16px;padding-inline:16px}
+.hrow{display:flex;gap:12px;align-items:baseline;justify-content:space-between;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-size:22px;margin:0;letter-spacing:-.01em}
+.file{font-family:var(--f-mono);font-size:12px;color:var(--muted);overflow-wrap:anywhere;min-width:0}
+.prog{margin-top:10px;display:flex;align-items:center;gap:12px}
+.bar{flex:1;height:8px;border-radius:99px;background:var(--surface2);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s}
+.prog b{font-family:var(--f-mono);font-weight:500;font-size:13px;font-variant-numeric:tabular-nums}
+main{display:flex;flex-direction:column;gap:16px;padding-block:16px}
+section[hidden]{display:none}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+h2{font-family:var(--f-display);font-size:17px;margin:0}
+.lbl{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 16px;font-weight:600;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-align:center}
+.btn.pri{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.big{min-height:64px;font-size:17px;width:100%}
+.btn.sm{min-height:38px;padding:6px 12px;font-size:14px;border-radius:10px}
+.btn:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{min-width:0}
+input[type=text],input[type=email],input[type=date],input[type=search],select{width:100%;min-height:48px;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--bg)}
+.field{display:flex;flex-direction:column;gap:6px;flex:1 1 200px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.hint{font-size:13px;color:var(--muted)}
+
+/* product card */
+.card{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;display:flex;flex-direction:column;gap:12px}
+.card.done{border-color:var(--ok)}
+.ctop{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
+.cname{font-family:var(--f-display);font-weight:600;font-size:18px;line-height:1.2;overflow-wrap:anywhere}
+.cmeta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
+.cmeta .mono{color:var(--fg)}
+.tag{font-size:12px;font-weight:600;border-radius:99px;padding:3px 10px;background:var(--surface2);white-space:nowrap}
+.tag.ok{background:var(--ok-soft);color:var(--ok)} .tag.warn{background:var(--warn-soft);color:var(--warn)} .tag.bad{background:var(--bad-soft);color:var(--bad)}
+.hist{display:flex;gap:6px;flex-wrap:wrap}
+.hist span{font-family:var(--f-mono);font-size:12px;background:var(--surface2);border-radius:8px;padding:3px 8px}
+.hist span em{font-style:normal;color:var(--muted);margin-right:6px}
+.spec{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.spec div{background:var(--surface2);border-radius:10px;padding:8px 10px}
+.spec b{display:block;font-family:var(--f-mono);font-size:18px;font-weight:500}
+.spec small{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.entry{display:flex;gap:8px;align-items:stretch}
+.stp{width:56px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:26px;font-weight:600;min-height:56px}
+.qty{flex:1;min-width:0;text-align:center;font-family:var(--f-mono);font-size:28px;border:2px solid var(--accent);border-radius:12px;background:var(--bg);min-height:56px;font-variant-numeric:tabular-nums}
+.oos{border-radius:12px;border:1px solid var(--bad);color:var(--bad);background:var(--bad-soft);font-weight:700;padding:0 14px;min-height:56px}
+.oos[aria-pressed=true]{background:var(--bad);color:var(--accent-fg)}
+[data-theme=dark] .oos[aria-pressed=true]{color:#16050a}
+
+/* list */
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:8px 14px;white-space:nowrap;font-weight:600;font-size:14px}
+.chip[aria-pressed=true]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.shelf{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding-top:8px}
+.item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.item .nm{font-weight:600;overflow-wrap:anywhere;min-width:0}
+.item .sub{grid-column:1;font-size:12px;color:var(--muted)}
+.item .v{grid-row:1 / span 2;grid-column:2}
+.item .vin{width:84px;min-height:44px;text-align:center;font-family:var(--f-mono);font-size:18px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.vin.ok{border-color:var(--ok);background:var(--ok-soft)} .vin.warn{border-color:var(--warn);background:var(--warn-soft)} .vin.bad{border-color:var(--bad);background:var(--bad-soft)}
+
+/* nav */
+nav{position:fixed;inset-inline:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));gap:8px;z-index:6}
+nav button{flex:1;border:0;background:transparent;border-radius:12px;padding:10px 4px;font-weight:600;color:var(--muted);min-height:48px}
+nav button[aria-selected=true]{background:var(--accent-soft);color:var(--accent)}
+
+/* scanner overlay */
+#scan{position:fixed;inset:0;background:#000;z-index:20;display:flex;flex-direction:column}
+#scan[hidden]{display:none}
+#scan video{flex:1;width:100%;min-height:0;object-fit:cover}
+.frame{position:absolute;left:10%;right:10%;top:28%;height:28%;border:3px solid #fff;border-radius:16px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);pointer-events:none}
+.frame::after{content:"";position:absolute;left:8px;right:8px;top:50%;height:2px;background:#ff4d63}
+.sbar{padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));background:#111;color:#fff;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.sbar .btn{background:#fff;color:#111;border-color:#fff}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(88px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:99px;font-weight:600;z-index:30;max-width:90vw}
+.toast[hidden]{display:none}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.stats div{background:var(--surface2);border-radius:10px;padding:10px}
+.stats b{display:block;font-family:var(--f-mono);font-size:22px;font-weight:500}
+.stats small{font-size:12px;color:var(--muted)}
+.miss{font-size:13px;color:var(--muted);max-height:180px;overflow:auto;padding-left:18px;margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="hrow"><h1>Relevé stock OPI</h1><span class="file" id="fileName">chargement…</span></div>
+  <div class="prog"><div class="bar"><i id="barFill"></i></div><b id="progTxt">0 / 0</b></div>
+</header>
+
+<main>
+<!-- SCAN -->
+<section id="tab-scan" class="panel" aria-label="Scan">
+  <button class="btn pri big" id="btnScan" type="button">Scanner un code-barres</button>
+  <div class="row">
+    <label class="btn" for="photoIn" style="flex:1">Prendre une photo du code
+      <input id="photoIn" type="file" accept="image/*" capture="environment" hidden></label>
+  </div>
+  <div class="field">
+    <label class="lbl" for="q">EAN, code SAP ou nom du produit</label>
+    <input id="q" type="search" inputmode="search" autocomplete="off" placeholder="Ex. 4064665114935 ou Top Coat">
+    <span class="hint">Une douchette USB ou Bluetooth écrit directement ici.</span>
+  </div>
+  <div id="results" style="display:flex;flex-direction:column;gap:12px"></div>
+</section>
+
+<!-- LISTE -->
+<section id="tab-list" class="panel" hidden aria-label="Liste">
+  <div class="chips" id="sheetChips" role="group" aria-label="Onglets du fichier"></div>
+  <div id="listBody"></div>
+</section>
+
+<!-- ENVOI -->
+<section id="tab-send" hidden style="display:flex;flex-direction:column;gap:16px" aria-label="Envoi">
+  <div class="panel">
+    <h2>Résumé du relevé</h2>
+    <div class="stats" id="stats"></div>
+    <details><summary class="hint" style="cursor:pointer">Produits pas encore comptés</summary><ul class="miss" id="missing"></ul></details>
+  </div>
+  <div class="panel">
+    <h2>Fichier Excel</h2>
+    <div class="field"><label class="lbl" for="visitDate">Date du relevé (nom de la nouvelle colonne)</label><input id="visitDate" type="date"></div>
+    <button class="btn pri" id="btnDownload" type="button">Télécharger le fichier complété (.xlsx)</button>
+    <span class="hint">Les formats et couleurs de votre fichier d'origine sont conservés. Une colonne datée est ajoutée à chaque onglet.</span>
+  </div>
+  <div class="panel">
+    <h2>Envoyer par mail</h2>
+    <div class="field"><label class="lbl" for="mailTo">Destinataire</label><input id="mailTo" type="email" inputmode="email" placeholder="prenom.nom@exemple.com"></div>
+    <div class="field"><label class="lbl" for="mailSubj">Objet</label><input id="mailSubj" type="text"></div>
+    <button class="btn pri" id="btnMail" type="button">Envoyer le fichier par mail</button>
+    <span class="hint" id="mailHint"></span>
+  </div>
+  <div class="panel">
+    <h2>Fichier de travail</h2>
+    <span class="hint">Pour le relevé suivant, chargez ici le dernier fichier exporté : la nouvelle colonne s'ajoutera à la suite.</span>
+    <label class="btn" for="fileIn">Charger un autre fichier Excel<input id="fileIn" type="file" accept=".xlsx" hidden></label>
+    <button class="btn" id="btnNew" type="button">Démarrer un nouveau relevé à partir du dernier export</button>
+    <button class="btn" id="btnReset" type="button" style="color:var(--bad)">Effacer les saisies du relevé en cours</button>
+  </div>
+</section>
+</main>
+</div>
+
+<nav aria-label="Navigation">
+  <button id="nav-scan" aria-selected="true" type="button">Scan</button>
+  <button id="nav-list" aria-selected="false" type="button">Liste</button>
+  <button id="nav-send" aria-selected="false" type="button">Envoi</button>
+</nav>
+
+<div id="scan" hidden>
+  <video id="vid" playsinline muted></video><div class="frame"></div>
+  <div class="sbar"><span id="scanMsg">Placez le code-barres dans le cadre</span><button class="btn sm" id="scanClose" type="button">Fermer</button></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script>
+const TEMPLATE_B64="";
+const TEMPLATE_NAME="OPI_FSU_Planogram_Avolta_2026.xlsx";
+const $=s=>document.querySelector(s);
+const LS={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+
+let wb=null, fileName=TEMPLATE_NAME, baseBuf=null, lastExport=null;
+let products=[], sheetInfo={}, extras=[];
+let counts={};            // key -> number | "OOS"
+let activeSheet=null;
+
+const txt=v=>{ if(v==null) return ""; if(typeof v==="object"){ if(v instanceof Date) return ""; if(v.richText) return v.richText.map(r=>r.text).join(""); if("result" in v) return txt(v.result); if(v.text) return String(v.text); return ""} return String(v).trim(); };
+const isDate=v=>v instanceof Date && !isNaN(v);
+const fmtDate=v=>{ if(isDate(v)){return String(v.getUTCDate()).padStart(2,"0")+"/"+String(v.getUTCMonth()+1).padStart(2,"0")} const t=txt(v); const m=t.match(/^(\d{1,2})\/(\d{1,2})/); return m?m[1].padStart(2,"0")+"/"+m[2].padStart(2,"0"):t.slice(0,6)};
+const norm=s=>s.replace(/\D/g,"").replace(/^0+/,"");
+const shortSheet=n=>n.replace(/^Avolta-FSU-/,"");
+const key=p=>p.extra?("x|"+p.ean):(p.sheet+"|"+p.row);
+const toast=(m,ms=2200)=>{const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,ms)};
+const b64ToBuf=b=>{const s=atob(b);const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u.buffer};
+const bufToB64=buf=>{let s="";const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
+
+/* ---------- parsing ---------- */
+async function loadBuffer(buf,name){
+  const w=new ExcelJS.Workbook(); await w.xlsx.load(buf.slice(0));
+  wb=w; fileName=name; baseBuf=buf; products=[]; sheetInfo={};
+  w.eachSheet(ws=>{
+    let h=null, lastCol=0, hdrRows=[];
+    for(let r=1;r<=ws.rowCount;r++){
+      const row=ws.getRow(r); let ean=0;
+      row.eachCell({includeEmpty:false},(c,ci)=>{ if(txt(c.value).toUpperCase()==="EAN CODE") ean=ci; });
+      if(ean){
+        h={ean,sap:0,fac:0,min:0,load:0,sales:0,shelf:txt(row.getCell(1).value)};
+        row.eachCell({includeEmpty:false},(c,ci)=>{const t=txt(c.value).toUpperCase();
+          if(t.includes("SAP"))h.sap=ci; else if(t.includes("FACING"))h.fac=ci; else if(t.includes("MDQ")||t.includes("MIN."))h.min=ci; else if(t.includes("LOAD"))h.load=ci; else if(t.includes("SALES"))h.sales=ci;});
+        h.dateStart=(h.sales||h.sap||ean)+1; h.row=r; hdrRows.push(r);
+        let lc=0; row.eachCell({includeEmpty:false},(c,ci)=>{lc=Math.max(lc,ci)}); lastCol=Math.max(lastCol,lc);
+        continue;
+      }
+      if(!h) continue;
+      const e=txt(row.getCell(h.ean).value).replace(/\s/g,""); const nm=txt(row.getCell(1).value);
+      if(!e||!nm) continue;
+      const hist=[];
+      for(let c=h.dateStart;c<=lastCol;c++){const v=txt(row.getCell(c).value); if(v&&v!=="-"&&!(row.getCell(c).value instanceof Date)) hist.push({d:fmtDate(ws.getRow(h.row).getCell(c).value),v});}
+      const num=c=>{const t=c?txt(row.getCell(c).value):"";return t===""?null:t};
+      products.push({sheet:ws.name,row:r,hdr:h.row,shelf:h.shelf,name:nm,ean:e,sap:h.sap?txt(row.getCell(h.sap).value):"",
+        fac:num(h.fac),min:num(h.min),load:num(h.load),hist:hist.slice(-3)});
+    }
+    if(hdrRows.length) sheetInfo[ws.name]={hdrRows,lastCol,rowCount:ws.rowCount};
+  });
+  activeSheet=Object.keys(sheetInfo)[0];
+}
+const allProducts=()=>products.concat(extras.map(x=>({...x,extra:true,sheet:"Avolta-FSU-Not Listed",shelf:"Ajoutés pendant le relevé",hist:[],fac:null,min:null,load:null,sap:""})));
+
+/* ---------- state persistence ---------- */
+function saveState(){ LS.set("opi.counts",JSON.stringify({counts,extras,file:fileName,date:$("#visitDate").value})); }
+function restoreState(){ try{const s=JSON.parse(LS.get("opi.counts")||"null"); if(s&&s.file===fileName){counts=s.counts||{};extras=s.extras||[]; if(s.date)$("#visitDate").value=s.date;}}catch(e){} }
+
+/* ---------- status ---------- */
+function status(p,v){
+  if(v==null||v==="") return "";
+  if(v==="OOS") return "bad";
+  const min=parseFloat(p.min); if(!isNaN(min)&&v<min) return "warn"; return "ok";
+}
+const statusTxt={ok:"Stock correct",warn:"Sous le minimum",bad:"Rupture (OOS)"};
+
+/* ---------- UI: progress ---------- */
+function refreshProgress(){
+  const all=allProducts(); const done=all.filter(p=>counts[key(p)]!=null).length;
+  $("#progTxt").textContent=done+" / "+all.length; $("#barFill").style.width=(all.length?done/all.length*100:0)+"%";
+  $("#fileName").textContent=fileName;
+}
+
+/* ---------- product card ---------- */
+function card(p){
+  const k=key(p), cur=counts[k]; const el=document.createElement("div"); el.className="card"+(cur!=null?" done":"");
+  const st=status(p,cur);
+  el.innerHTML=`<div class="ctop"><div style="min-width:0"><div class="lbl">${esc(shortSheet(p.sheet))}${p.shelf?" · "+esc(p.shelf):""}</div><div class="cname">${esc(p.name)}</div></div>${st?`<span class="tag ${st}">${statusTxt[st]}</span>`:""}</div>
+  <div class="cmeta"><span>EAN <span class="mono">${esc(p.ean)}</span></span>${p.sap?`<span>SAP <span class="mono">${esc(p.sap)}</span></span>`:""}</div>
+  ${(p.fac!=null||p.min!=null||p.load!=null)?`<div class="spec"><div><small>Facings</small><b>${esc(p.fac??"–")}</b></div><div><small>Min. stock</small><b>${esc(p.min??"–")}</b></div><div><small>Load-up</small><b>${esc(p.load??"–")}</b></div></div>`:""}
+  ${p.hist.length?`<div class="hist">${p.hist.map(h=>`<span><em>${esc(h.d)}</em>${esc(h.v)}</span>`).join("")}</div>`:""}
+  <div class="entry"><button class="stp" type="button" data-d="-1" aria-label="Moins">−</button>
+  <input class="qty" type="text" inputmode="numeric" pattern="[0-9]*" value="${cur==null?"":(cur==="OOS"?"OOS":cur)}" placeholder="Stock" aria-label="Stock compté">
+  <button class="stp" type="button" data-d="1" aria-label="Plus">+</button>
+  <button class="oos" type="button" aria-pressed="${cur==="OOS"}">OOS</button></div>
+  <button class="btn pri" type="button" data-save>Enregistrer</button>`;
+  const qty=el.querySelector(".qty"), oos=el.querySelector(".oos");
+  const num=()=>{const n=parseInt(qty.value,10);return isNaN(n)?0:n};
+  el.querySelectorAll(".stp").forEach(b=>b.onclick=()=>{ if(qty.value==="OOS")qty.value="0"; qty.value=Math.max(0,num()+parseInt(b.dataset.d)); oos.setAttribute("aria-pressed","false")});
+  oos.onclick=()=>{const on=oos.getAttribute("aria-pressed")!=="true"; oos.setAttribute("aria-pressed",on); qty.value=on?"OOS":""};
+  el.querySelector("[data-save]").onclick=()=>{
+    let v; if(oos.getAttribute("aria-pressed")==="true"||qty.value.toUpperCase()==="OOS") v="OOS"; else if(qty.value.trim()===""){toast("Saisissez une quantité");qty.focus();return} else v=Math.max(0,parseInt(qty.value,10)||0);
+    counts[k]=v; saveState(); refreshProgress(); toast(p.name+" : "+v);
+    if(el.closest("#results")){ $("#results").innerHTML=""; $("#q").value=""; $("#q").focus({preventScroll:true}); } else renderList();
+  };
+  return el;
+}
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- search / scan result ---------- */
+function search(q){
+  q=q.trim(); const out=$("#results"); out.innerHTML="";
+  if(!q) return;
+  const all=allProducts(); let hits=[];
+  if(/^[\d\s]+$/.test(q)){
+    const n=norm(q); hits=all.filter(p=>norm(p.ean)===n||(p.sap&&norm(p.sap)===n));
+    if(!hits.length && n.length>=8){ unknown(q.replace(/\s/g,"")); return; }
+    if(!hits.length && n.length>=3) hits=all.filter(p=>norm(p.ean).includes(n)||norm(p.sap).includes(n)).slice(0,8);
+  } else {
+    const words=q.toLowerCase().split(/\s+/); hits=all.filter(p=>words.every(w=>p.name.toLowerCase().includes(w))).slice(0,8);
+  }
+  if(!hits.length){ out.innerHTML='<p class="hint">Aucun produit trouvé.</p>'; return; }
+  hits.forEach(p=>out.appendChild(card(p)));
+}
+function unknown(ean){
+  const out=$("#results"); const el=document.createElement("div"); el.className="card";
+  el.innerHTML=`<div class="cname">Produit inconnu</div><div class="cmeta"><span>EAN <span class="mono">${esc(ean)}</span></span></div>
+  <p class="hint" style="margin:0">Ce code n'est pas dans votre fichier. Vous pouvez l'ajouter à l'onglet « Not Listed ».</p>
+  <div class="field"><label class="lbl" for="newName">Nom du produit</label><input id="newName" type="text" placeholder="Ex. OPI Fall26 Mini Pack"></div>
+  <button class="btn pri" type="button">Ajouter à « Not Listed »</button>`;
+  el.querySelector("button").onclick=()=>{const nm=el.querySelector("#newName").value.trim(); if(!nm){toast("Indiquez un nom");return}
+    if(!sheetInfo["Avolta-FSU-Not Listed"]){toast("Onglet Not Listed absent du fichier");return}
+    extras.push({name:nm,ean}); saveState(); refreshProgress(); search(ean);};
+  out.appendChild(el);
+}
+$("#q").addEventListener("input",e=>search(e.target.value));
+$("#q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); search(e.target.value);} });
+
+/* ---------- camera scan ---------- */
+let stream=null, zreader=null, scanning=false, detector=null;
+const FORMATS=["ean_13","ean_8","upc_a","upc_e","code_128"];
+function onCode(code){ stopScan(); $("#q").value=code; search(code); if(navigator.vibrate)try{navigator.vibrate(60)}catch(e){} }
+async function startScan(){
+  $("#scan").hidden=false; $("#scanMsg").textContent="Placez le code-barres dans le cadre";
+  try{
+    if("BarcodeDetector" in window){
+      detector=new BarcodeDetector({formats:FORMATS});
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});
+      const v=$("#vid"); v.srcObject=stream; await v.play(); scanning=true;
+      const tick=async()=>{ if(!scanning)return; try{const r=await detector.detect(v); if(r.length){onCode(r[0].rawValue);return}}catch(e){} setTimeout(tick,150)}; tick();
+    } else if(window.ZXing){
+      scanning=true; zreader=new ZXing.BrowserMultiFormatReader();
+      await zreader.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},$("#vid"),(res)=>{ if(res&&scanning) onCode(res.getText()); });
+    } else throw new Error("no-decoder");
+  }catch(err){
+    stopScan(); toast("Caméra indisponible ici. Utilisez « Prendre une photo du code » ou saisissez l'EAN.",4500);
+  }
+}
+function stopScan(){
+  scanning=false; $("#scan").hidden=true;
+  try{ if(zreader){zreader.reset();zreader=null} }catch(e){}
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  const v=$("#vid"); try{v.pause();v.srcObject=null}catch(e){}
+}
+$("#btnScan").onclick=startScan; $("#scanClose").onclick=stopScan;
+
+$("#photoIn").addEventListener("change",async e=>{
+  const f=e.target.files[0]; if(!f) return; e.target.value="";
+  const url=URL.createObjectURL(f); let code=null;
+  try{
+    if("BarcodeDetector" in window){ const bmp=await createImageBitmap(f); const r=await new BarcodeDetector({formats:FORMATS}).detect(bmp); if(r.length)code=r[0].rawValue; }
+    if(!code&&window.ZXing){ const rd=new ZXing.BrowserMultiFormatReader(); const r=await rd.decodeFromImageUrl(url); code=r.getText(); }
+  }catch(err){}
+  URL.revokeObjectURL(url);
+  if(code){$("#q").value=code;search(code)} else toast("Code non lu. Rapprochez-vous, bien à plat, ou saisissez l'EAN.",4000);
+});
+
+/* ---------- list ---------- */
+function renderList(){
+  const chips=$("#sheetChips"); chips.innerHTML="";
+  Object.keys(sheetInfo).forEach(n=>{const all=allProducts().filter(p=>p.sheet===n); const d=all.filter(p=>counts[key(p)]!=null).length;
+    const b=document.createElement("button"); b.type="button"; b.className="chip"; b.setAttribute("aria-pressed",n===activeSheet); b.textContent=`${shortSheet(n)} ${d}/${all.length}`; b.onclick=()=>{activeSheet=n;renderList()}; chips.appendChild(b)});
+  const body=$("#listBody"); body.innerHTML=""; let shelf=null;
+  allProducts().filter(p=>p.sheet===activeSheet).forEach(p=>{
+    if(p.shelf!==shelf){shelf=p.shelf; if(shelf){const s=document.createElement("div");s.className="shelf";s.textContent=shelf;body.appendChild(s)}}
+    const k=key(p), cur=counts[k], st=status(p,cur);
+    const it=document.createElement("div"); it.className="item";
+    const last=p.hist.length?p.hist[p.hist.length-1]:null;
+    it.innerHTML=`<div class="nm">${esc(p.name)}</div><div class="sub"><span class="mono">${esc(p.ean)}</span>${p.min!=null?" · min "+esc(p.min):""}${last?" · dernier "+esc(last.v):""}</div><div class="v"><input class="vin ${st}" type="text" inputmode="numeric" value="${cur==null?"":cur}" placeholder="–" aria-label="Stock ${esc(p.name)}"></div>`;
+    const inp=it.querySelector("input");
+    inp.addEventListener("change",()=>{const t=inp.value.trim(); if(t===""){delete counts[k]} else if(/^oos$/i.test(t)||t==="0"&&false){counts[k]="OOS"} else {const n=parseInt(t,10); if(isNaN(n)){toast("Nombre ou OOS");inp.value=cur??"";return} counts[k]=n}
+      saveState(); refreshProgress(); const s2=status(p,counts[k]); inp.className="vin "+s2;});
+    body.appendChild(it);
+  });
+}
+
+/* ---------- export ---------- */
+function summary(){
+  const all=allProducts(); const vals=all.map(p=>counts[key(p)]);
+  const done=vals.filter(v=>v!=null).length, oos=vals.filter(v=>v==="OOS").length;
+  const low=all.filter(p=>status(p,counts[key(p)])==="warn").length;
+  $("#stats").innerHTML=`<div><b>${done}/${all.length}</b><small>comptés</small></div><div><b>${oos}</b><small>en rupture</small></div><div><b>${low}</b><small>sous le minimum</small></div>`;
+  const m=all.filter(p=>counts[key(p)]==null); $("#missing").innerHTML=m.length?m.map(p=>`<li>${esc(shortSheet(p.sheet))} · ${esc(p.name)}</li>`).join(""):"<li>Tout est compté.</li>";
+}
+function isoToDate(iso){const [y,m,d]=iso.split("-").map(Number);return new Date(Date.UTC(y,m-1,d))}
+async function buildXlsx(){
+  const w=new ExcelJS.Workbook(); await w.xlsx.load(baseBuf.slice(0));
+  const date=isoToDate($("#visitDate").value);
+  for(const name of Object.keys(sheetInfo)){
+    const ws=w.getWorksheet(name); const info=sheetInfo[name]; const first=ws.getRow(info.hdrRows[0]).getCell(info.lastCol).value;
+    const reuse=isDate(first)&&first.getTime()===date.getTime(); const col=reuse?info.lastCol:info.lastCol+1;
+    const lastRow=info.rowCount;
+    if(!reuse){ for(let r=1;r<=lastRow;r++){ const src=ws.getRow(r).getCell(info.lastCol), dst=ws.getRow(r).getCell(col); try{dst.style=JSON.parse(JSON.stringify(src.style||{}))}catch(e){} } ws.getColumn(col).width=ws.getColumn(info.lastCol).width||12; }
+    info.hdrRows.forEach(r=>{const c=ws.getRow(r).getCell(col); c.value=date;});
+    products.filter(p=>p.sheet===name).forEach(p=>{const v=counts[key(p)]; if(v!=null) ws.getRow(p.row).getCell(col).value=v;});
+    if(name==="Avolta-FSU-Not Listed"){ let r=lastRow; const tpl=ws.getRow(Math.max(2,lastRow));
+      extras.forEach(x=>{r++; const row=ws.getRow(r); tpl.eachCell({includeEmpty:true},(c,ci)=>{try{row.getCell(ci).style=JSON.parse(JSON.stringify(c.style||{}))}catch(e){}});
+        row.getCell(1).value=x.name; row.getCell(2).value=x.ean; const v=counts[key({extra:true,ean:x.ean})]; if(v!=null) row.getCell(col).value=v; row.commit&&row.commit();}); }
+  }
+  return w.xlsx.writeBuffer();
+}
+const outName=()=>fileName.replace(/\.xlsx$/i,"").replace(/_relev[ée]_\d{4}-\d{2}-\d{2}$/,"")+"_relevé_"+$("#visitDate").value+".xlsx";
+const MIME="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+async function exportFile(){
+  if(!$("#visitDate").value){toast("Choisissez la date du relevé");return null}
+  try{ const buf=await buildXlsx(); lastExport={buf,name:outName()}; return lastExport }catch(e){ console.error(e); toast("Erreur de création du fichier : "+e.message,5000); return null }
+}
+async function saveFile(f){
+  let dl=null; try{ dl=window.claude&&claude.use?await claude.use("downloads"):null }catch(e){}
+  if(dl){ try{ await dl.save({filename:f.name,data:new Blob([f.buf],{type:MIME})}); toast("Fichier enregistré"); return true }catch(e){ if(e&&e.code==="declined")return false } }
+  const url=URL.createObjectURL(new Blob([f.buf],{type:MIME})); const a=document.createElement("a"); a.href=url; a.download=f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); toast("Fichier téléchargé"); return true;
+}
+$("#btnDownload").onclick=async()=>{const f=await exportFile(); if(f) await saveFile(f)};
+$("#btnMail").onclick=async()=>{
+  const f=await exportFile(); if(!f) return; saveState();
+  const to=$("#mailTo").value.trim(), subj=$("#mailSubj").value.trim(); LS.set("opi.mail",JSON.stringify({to,subj}));
+  const body="Bonjour,\n\nVeuillez trouver ci-joint le relevé de stock du "+$("#visitDate").value.split("-").reverse().join("/")+".\n\nCordialement,\nStéphane";
+  try{ const file=new File([f.buf],f.name,{type:MIME}); if(navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:subj,text:body}); return; } }catch(e){ if(e&&e.name==="AbortError")return; }
+  // Repli : enregistrer puis ouvrir le brouillon de mail (la pièce jointe se glisse à la main)
+  await saveFile(f);
+  $("#mailHint").innerHTML="Le fichier est enregistré. Votre messagerie va s'ouvrir : ajoutez-le en pièce jointe. Si rien ne s'ouvre, <a href=\"mailto:"+encodeURI(to)+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent(body)+"\">cliquez ici</a>.";
+  location.href="mailto:"+encodeURI(to)+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent(body);
+};
+$("#fileIn").addEventListener("change",async e=>{const f=e.target.files[0]; if(!f)return; e.target.value=""; try{ const buf=await f.arrayBuffer(); await loadBuffer(buf,f.name); LS.set("opi.base",bufToB64(buf)); LS.set("opi.baseName",f.name); counts={};extras=[]; restoreState(); afterLoad(); toast("Fichier chargé : "+f.name);}catch(err){toast("Fichier illisible : "+err.message,5000)}});
+$("#btnNew").onclick=async()=>{ const f=lastExport||await exportFile(); if(!f)return; await loadBuffer(f.buf,f.name); LS.set("opi.base",bufToB64(f.buf)); LS.set("opi.baseName",f.name); counts={};extras=[]; $("#visitDate").value=new Date().toISOString().slice(0,10); saveState(); afterLoad(); lastExport=null; toast("Nouveau relevé prêt"); };
+$("#btnReset").onclick=function(){ if(this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Confirmer : tout effacer";setTimeout(()=>{this.dataset.arm="";this.textContent="Effacer les saisies du relevé en cours"},4000);return} counts={};extras=[];saveState();afterLoad();this.dataset.arm="";this.textContent="Effacer les saisies du relevé en cours";toast("Saisies effacées")};
+$("#visitDate").addEventListener("change",()=>{saveState();$("#mailSubj").value=subjFor()});
+const subjFor=()=>"Relevé stock OPI Avolta – "+($("#visitDate").value||"").split("-").reverse().join("/");
+
+/* ---------- tabs ---------- */
+function tab(n){ ["scan","list","send"].forEach(t=>{ $("#tab-"+t).hidden=t!==n; $("#nav-"+t).setAttribute("aria-selected",t===n)}); if(n==="list")renderList(); if(n==="send")summary(); window.scrollTo(0,0)}
+["scan","list","send"].forEach(t=>$("#nav-"+t).onclick=()=>tab(t));
+
+function afterLoad(){ refreshProgress(); $("#results").innerHTML=""; renderList(); summary(); }
+function noFile(){ fileName="Aucun fichier chargé"; $("#results").innerHTML='<div class="card"><div class="cname">Chargez votre fichier Excel</div><p class="hint" style="margin:0">Allez dans l\'onglet Envoi, puis « Charger un autre fichier Excel » et choisissez votre planogramme. Il reste sur votre appareil et sera mémorisé.</p></div>'; }
+(async function boot(){
+  $("#visitDate").value=new Date().toISOString().slice(0,10);
+  try{ const m=JSON.parse(LS.get("opi.mail")||"null"); if(m){$("#mailTo").value=m.to||"";} }catch(e){}
+  $("#mailSubj").value=subjFor();
+  try{
+    const stored=LS.get("opi.base");
+    if(stored) await loadBuffer(b64ToBuf(stored),LS.get("opi.baseName")||"fichier.xlsx"); else if(TEMPLATE_B64) await loadBuffer(b64ToBuf(TEMPLATE_B64),TEMPLATE_NAME); else noFile();
+  }catch(e){ if(TEMPLATE_B64) await loadBuffer(b64ToBuf(TEMPLATE_B64),TEMPLATE_NAME); else noFile(); }
+  restoreState(); $("#mailSubj").value=subjFor(); afterLoad(); if(!products.length) noFile(); $("#fileName").textContent=fileName;
+})();
+</script>
+</body></html>
