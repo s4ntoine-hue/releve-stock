@@ -102,6 +102,9 @@ nav button[aria-selected=true]{background:var(--accent-soft);color:var(--accent)
 .sbar{padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));background:#111;color:#fff;display:flex;gap:10px;align-items:center;justify-content:space-between}
 .sbar .btn{background:#fff;color:#111;border-color:#fff}
 .sbar{flex-wrap:wrap}.sbar span{flex:1;min-width:0}
+.filebtn{position:relative;overflow:hidden}
+.filebtn input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:0;cursor:pointer}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(88px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:99px;font-weight:600;z-index:30;max-width:90vw}
 .toast[hidden]{display:none}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
@@ -132,8 +135,8 @@ nav button[aria-selected=true]{background:var(--accent-soft);color:var(--accent)
 <section id="tab-scan" class="panel" aria-label="Scan">
   <button class="btn pri big" id="btnScan" type="button">Scanner un code-barres</button>
   <div class="row">
-    <label class="btn" for="photoIn" style="flex:1">Prendre une photo du code
-      <input id="photoIn" type="file" accept="image/*" capture="environment" hidden></label>
+    <label class="btn filebtn" style="flex:1">Prendre une photo du code
+      <input id="photoIn" type="file" accept="image/*" capture="environment"></label>
   </div>
   <div class="field">
     <label class="lbl" for="q">EAN, code SAP ou nom du produit</label>
@@ -172,7 +175,7 @@ nav button[aria-selected=true]{background:var(--accent-soft);color:var(--accent)
   <div class="panel">
     <h2>Fichier de travail</h2>
     <span class="hint">Pour le relevé suivant, chargez ici le dernier fichier exporté : la nouvelle colonne s'ajoutera à la suite.</span>
-    <label class="btn" for="fileIn">Charger un autre fichier Excel<input id="fileIn" type="file" accept=".xlsx" hidden></label>
+    <label class="btn filebtn">Charger un autre fichier Excel<input id="fileIn" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
     <button class="btn" id="btnNew" type="button">Démarrer un nouveau relevé à partir du dernier export</button>
     <button class="btn" id="btnReset" type="button" style="color:var(--bad)">Effacer les saisies du relevé en cours</button>
   </div>
@@ -190,7 +193,7 @@ nav button[aria-selected=true]{background:var(--accent-soft);color:var(--accent)
   <video id="vid" playsinline muted></video><div class="frame"></div>
   <div class="sbar"><span id="scanMsg">Placez le code-barres dans le cadre</span><button class="btn sm" id="torchBtn" type="button" hidden>Lampe</button><button class="btn sm" id="scanClose" type="button">Fermer</button><input id="zoomIn" type="range" hidden aria-label="Zoom" style="flex-basis:100%"></div>
 </div>
-<input id="shotIn" type="file" accept="image/*" hidden>
+<input id="shotIn" class="vh" type="file" accept="image/*" tabindex="-1" aria-hidden="true">
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
@@ -388,13 +391,13 @@ function stopScan(){
 $("#btnScan").onclick=startScan; $("#scanClose").onclick=stopScan;
 
 $("#photoIn").addEventListener("change",async e=>{
-  const f=e.target.files[0]; if(!f) return; e.target.value="";
+  const f=e.target.files[0]; if(!f) return;
   const url=URL.createObjectURL(f); let code=null, raw=null;
   try{
     if("BarcodeDetector" in window){ try{ const bmp=await createImageBitmap(f); const r=await new BarcodeDetector().detect(bmp); const ok=r.find(x=>validEan(x.rawValue)); if(ok)code=ok.rawValue; else if(r.length)raw=r[0].rawValue; }catch(e2){} }
     if(!code&&window.ZXing){ const hints=new Map(); hints.set(ZXing.DecodeHintType.TRY_HARDER,true); const rd=new ZXing.BrowserMultiFormatReader(hints); const r=await rd.decodeFromImageUrl(url); const c=r.getText(); if(validEan(c))code=c; else raw=raw||c; }
   }catch(err){}
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(url); e.target.value="";
   if(code){$("#q").value=code;search(code)} else if(raw){ $("#q").value=raw; search(raw); toast("Lecture douteuse : vérifiez les chiffres",4500) } else toast("Code non lu. Rapprochez-vous, bien à plat, ou saisissez l'EAN.",4500);
 });
 
@@ -469,7 +472,7 @@ $("#btnMail").onclick=async()=>{
   $("#mailHint").innerHTML="Le fichier est enregistré. Votre messagerie va s'ouvrir : ajoutez-le en pièce jointe. Si rien ne s'ouvre, <a href=\"mailto:"+encodeURI(to)+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent(body)+"\">cliquez ici</a>.";
   location.href="mailto:"+encodeURI(to)+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent(body);
 };
-$("#fileIn").addEventListener("change",async e=>{const f=e.target.files[0]; if(!f)return; e.target.value=""; try{ const buf=await f.arrayBuffer(); await loadBuffer(buf,f.name); LS.set("opi.base",bufToB64(buf)); LS.set("opi.baseName",f.name); counts={};extras=[]; restoreState(); afterLoad(); toast("Fichier chargé : "+f.name);}catch(err){toast("Fichier illisible : "+err.message,5000)}});
+$("#fileIn").addEventListener("change",async e=>{const f=e.target.files[0]; if(!f)return; toast("Lecture de "+f.name+"…",10000); try{ const buf=await f.arrayBuffer(); e.target.value=""; await loadBuffer(buf,f.name); LS.set("opi.base",bufToB64(buf)); LS.set("opi.baseName",f.name); counts={};extras=[]; restoreState(); afterLoad(); toast("Fichier chargé : "+f.name);}catch(err){e.target.value="";toast("Fichier illisible : "+err.message,6000)}});
 $("#btnNew").onclick=async()=>{ const f=lastExport||await exportFile(); if(!f)return; await loadBuffer(f.buf,f.name); LS.set("opi.base",bufToB64(f.buf)); LS.set("opi.baseName",f.name); counts={};extras=[]; $("#visitDate").value=new Date().toISOString().slice(0,10); saveState(); afterLoad(); lastExport=null; toast("Nouveau relevé prêt"); };
 $("#btnReset").onclick=function(){ if(this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Confirmer : tout effacer";setTimeout(()=>{this.dataset.arm="";this.textContent="Effacer les saisies du relevé en cours"},4000);return} counts={};extras=[];saveState();afterLoad();this.dataset.arm="";this.textContent="Effacer les saisies du relevé en cours";toast("Saisies effacées")};
 $("#visitDate").addEventListener("change",()=>{saveState();$("#mailSubj").value=subjFor()});
@@ -484,13 +487,14 @@ async function photoUrl(ean){ const k=norm(ean); if(k in purl) return purl[k]; c
 async function fillThumb(btn){ if(!btn)return; const u=await photoUrl(btn.dataset.ean); btn.innerHTML=u?'<img alt="" src="'+u+'">':'<span>＋<br>photo</span>'; btn.classList.toggle("has",!!u); }
 function refreshThumbs(){ document.querySelectorAll(".thumb").forEach(fillThumb) }
 function dropCache(ean){ const k=norm(ean); if(purl[k])URL.revokeObjectURL(purl[k]); delete purl[k]; }
+async function toBitmap(f){ if(window.createImageBitmap){ try{ return await createImageBitmap(f) }catch(e){} } const u=URL.createObjectURL(f); try{ const im=new Image(); im.src=u; await im.decode(); return im } finally{ setTimeout(()=>URL.revokeObjectURL(u),2000) } }
 function askPhoto(ean){ pendingEan=ean; $("#shotIn").click(); }
 async function delPhoto(ean){ await pset(norm(ean),null); dropCache(ean); refreshThumbs(); toast("Photo supprimée"); }
 $("#shotIn").addEventListener("change",async e=>{
-  const f=e.target.files[0]; e.target.value=""; if(!f||!pendingEan) return; const ean=pendingEan;
-  try{ const bmp=await createImageBitmap(f); const s=Math.min(1,640/Math.max(bmp.width,bmp.height)); const c=document.createElement("canvas"); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s); c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+  const f=e.target.files[0]; if(!f||!pendingEan){e.target.value="";return} const ean=pendingEan;
+  try{ const bmp=await toBitmap(f); e.target.value=""; const bw=bmp.naturalWidth||bmp.width, bh=bmp.naturalHeight||bmp.height; const s=Math.min(1,640/Math.max(bw,bh)); const c=document.createElement("canvas"); c.width=Math.round(bw*s); c.height=Math.round(bh*s); c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
     const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.8)); const ok=await pset(norm(ean),blob); dropCache(ean); refreshThumbs(); toast(ok?"Photo enregistrée":"Enregistrement impossible ici"); }
-  catch(err){ toast("Photo illisible"); }
+  catch(err){ e.target.value=""; toast("Photo illisible"); }
 });
 const bubble=document.createElement("div"); bubble.id="bubble"; bubble.hidden=true; document.body.appendChild(bubble); let bubbleFor=null;
 async function showBubble(btn){
