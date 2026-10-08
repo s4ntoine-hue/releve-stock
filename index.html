@@ -101,6 +101,7 @@ nav button[aria-selected=true]{background:var(--accent-soft);color:var(--accent)
 .frame::after{content:"";position:absolute;left:8px;right:8px;top:50%;height:2px;background:#ff4d63}
 .sbar{padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));background:#111;color:#fff;display:flex;gap:10px;align-items:center;justify-content:space-between}
 .sbar .btn{background:#fff;color:#111;border-color:#fff}
+.sbar{flex-wrap:wrap}.sbar span{flex:1;min-width:0}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(88px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:99px;font-weight:600;z-index:30;max-width:90vw}
 .toast[hidden]{display:none}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
@@ -108,6 +109,15 @@ nav button[aria-selected=true]{background:var(--accent-soft);color:var(--accent)
 .stats b{display:block;font-family:var(--f-mono);font-size:22px;font-weight:500}
 .stats small{font-size:12px;color:var(--muted)}
 .miss{font-size:13px;color:var(--muted);max-height:180px;overflow:auto;padding-left:18px;margin:0}
+/* photos */
+.thumb{flex:0 0 auto;width:64px;height:64px;border-radius:12px;border:1px dashed var(--line);background:var(--surface2);overflow:hidden;padding:0;color:var(--muted);font-size:11px;font-weight:600;line-height:1.2}
+.thumb.has{border:1px solid var(--line);background:#fff}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.thumb.sm{width:44px;height:44px;border-radius:10px;font-size:10px}
+#bubble{position:fixed;z-index:25;width:min(260px,calc(100vw - 16px));background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.28);display:flex;flex-direction:column;gap:8px}
+#bubble img{width:100%;aspect-ratio:1;object-fit:contain;background:#fff;border-radius:10px}
+.bn{font-weight:600;font-size:13px;overflow-wrap:anywhere}
+.ba{display:flex;gap:8px}.ba .btn{flex:1}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -178,8 +188,9 @@ nav button[aria-selected=true]{background:var(--accent-soft);color:var(--accent)
 
 <div id="scan" hidden>
   <video id="vid" playsinline muted></video><div class="frame"></div>
-  <div class="sbar"><span id="scanMsg">Placez le code-barres dans le cadre</span><button class="btn sm" id="scanClose" type="button">Fermer</button></div>
+  <div class="sbar"><span id="scanMsg">Placez le code-barres dans le cadre</span><button class="btn sm" id="torchBtn" type="button" hidden>Lampe</button><button class="btn sm" id="scanClose" type="button">Fermer</button><input id="zoomIn" type="range" hidden aria-label="Zoom" style="flex-basis:100%"></div>
 </div>
+<input id="shotIn" type="file" accept="image/*" hidden>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
@@ -210,7 +221,7 @@ async function loadBuffer(buf,name){
   const w=new ExcelJS.Workbook(); await w.xlsx.load(buf.slice(0));
   wb=w; fileName=name; baseBuf=buf; products=[]; sheetInfo={};
   w.eachSheet(ws=>{
-    let h=null, lastCol=0, hdrRows=[];
+    let h=null, lastCol=0, hdrRows=[], lastProd=0;
     for(let r=1;r<=ws.rowCount;r++){
       const row=ws.getRow(r); let ean=0;
       row.eachCell({includeEmpty:false},(c,ci)=>{ if(txt(c.value).toUpperCase()==="EAN CODE") ean=ci; });
@@ -225,17 +236,18 @@ async function loadBuffer(buf,name){
       if(!h) continue;
       const e=txt(row.getCell(h.ean).value).replace(/\s/g,""); const nm=txt(row.getCell(1).value);
       if(!e||!nm) continue;
-      const hist=[];
+      lastProd=r; const hist=[];
       for(let c=h.dateStart;c<=lastCol;c++){const v=txt(row.getCell(c).value); if(v&&v!=="-"&&!(row.getCell(c).value instanceof Date)) hist.push({d:fmtDate(ws.getRow(h.row).getCell(c).value),v});}
       const num=c=>{const t=c?txt(row.getCell(c).value):"";return t===""?null:t};
       products.push({sheet:ws.name,row:r,hdr:h.row,shelf:h.shelf,name:nm,ean:e,sap:h.sap?txt(row.getCell(h.sap).value):"",
         fac:num(h.fac),min:num(h.min),load:num(h.load),hist:hist.slice(-3)});
     }
-    if(hdrRows.length) sheetInfo[ws.name]={hdrRows,lastCol,rowCount:ws.rowCount};
+    if(hdrRows.length) sheetInfo[ws.name]={hdrRows,lastCol,rowCount:ws.rowCount,lastProd,cols:{ean:h.ean,sap:h.sap}};
   });
   activeSheet=Object.keys(sheetInfo)[0];
 }
-const allProducts=()=>products.concat(extras.map(x=>({...x,extra:true,sheet:"Avolta-FSU-Not Listed",shelf:"Ajoutés pendant le relevé",hist:[],fac:null,min:null,load:null,sap:""})));
+const extraSheet=x=>(x.sheet&&sheetInfo[x.sheet])?x.sheet:"Avolta-FSU-Not Listed";
+const allProducts=()=>products.concat(extras.map(x=>({shelf:"Ajoutés pendant le relevé",hist:[],fac:null,min:null,load:null,...x,extra:true,sheet:extraSheet(x),sap:x.sap||""})));
 
 /* ---------- state persistence ---------- */
 function saveState(){ LS.set("opi.counts",JSON.stringify({counts,extras,file:fileName,date:$("#visitDate").value})); }
@@ -260,7 +272,7 @@ function refreshProgress(){
 function card(p){
   const k=key(p), cur=counts[k]; const el=document.createElement("div"); el.className="card"+(cur!=null?" done":"");
   const st=status(p,cur);
-  el.innerHTML=`<div class="ctop"><div style="min-width:0"><div class="lbl">${esc(shortSheet(p.sheet))}${p.shelf?" · "+esc(p.shelf):""}</div><div class="cname">${esc(p.name)}</div></div>${st?`<span class="tag ${st}">${statusTxt[st]}</span>`:""}</div>
+  el.innerHTML=`<div class="ctop"><button class="thumb" type="button" data-ean="${esc(p.ean)}" data-name="${esc(p.name)}" aria-label="Photo du produit"></button><div style="min-width:0;flex:1"><div class="lbl">${esc(shortSheet(p.sheet))}${p.shelf?" · "+esc(p.shelf):""}</div><div class="cname">${esc(p.name)}</div></div>${st?`<span class="tag ${st}">${statusTxt[st]}</span>`:""}</div>
   <div class="cmeta"><span>EAN <span class="mono">${esc(p.ean)}</span></span>${p.sap?`<span>SAP <span class="mono">${esc(p.sap)}</span></span>`:""}</div>
   ${(p.fac!=null||p.min!=null||p.load!=null)?`<div class="spec"><div><small>Facings</small><b>${esc(p.fac??"–")}</b></div><div><small>Min. stock</small><b>${esc(p.min??"–")}</b></div><div><small>Load-up</small><b>${esc(p.load??"–")}</b></div></div>`:""}
   ${p.hist.length?`<div class="hist">${p.hist.map(h=>`<span><em>${esc(h.d)}</em>${esc(h.v)}</span>`).join("")}</div>`:""}
@@ -269,6 +281,7 @@ function card(p){
   <button class="stp" type="button" data-d="1" aria-label="Plus">+</button>
   <button class="oos" type="button" aria-pressed="${cur==="OOS"}">OOS</button></div>
   <button class="btn pri" type="button" data-save>Enregistrer</button>`;
+  fillThumb(el.querySelector(".thumb"));
   const qty=el.querySelector(".qty"), oos=el.querySelector(".oos");
   const num=()=>{const n=parseInt(qty.value,10);return isNaN(n)?0:n};
   el.querySelectorAll(".stp").forEach(b=>b.onclick=()=>{ if(qty.value==="OOS")qty.value="0"; qty.value=Math.max(0,num()+parseInt(b.dataset.d)); oos.setAttribute("aria-pressed","false")});
@@ -297,57 +310,92 @@ function search(q){
   if(!hits.length){ out.innerHTML='<p class="hint">Aucun produit trouvé.</p>'; return; }
   hits.forEach(p=>out.appendChild(card(p)));
 }
+function validEan(c){ if(!/^\d+$/.test(c)||![8,12,13,14].includes(c.length)) return false; const d=c.split("").map(Number); const chk=d.pop(); let s=0; d.reverse().forEach((n,k)=>s+=n*(k%2===0?3:1)); return (10-s%10)%10===chk; }
 function unknown(ean){
   const out=$("#results"); const el=document.createElement("div"); el.className="card";
+  const sheets=Object.keys(sheetInfo); const def=sheets.includes("Avolta-FSU-Not Listed")?"Avolta-FSU-Not Listed":sheets[0];
   el.innerHTML=`<div class="cname">Produit inconnu</div><div class="cmeta"><span>EAN <span class="mono">${esc(ean)}</span></span></div>
-  <p class="hint" style="margin:0">Ce code n'est pas dans votre fichier. Vous pouvez l'ajouter à l'onglet « Not Listed ».</p>
+  ${validEan(ean)?"":'<p class="hint" style="margin:0;color:var(--warn)">Ce numéro ne passe pas le contrôle de validité d\'un code-barres : il a peut-être été mal lu. Vérifiez les chiffres avant d\'ajouter.</p>'}
+  <p class="hint" style="margin:0">Ce code n'est pas dans votre fichier. Choisissez où l'ajouter.</p>
   <div class="field"><label class="lbl" for="newName">Nom du produit</label><input id="newName" type="text" placeholder="Ex. OPI Fall26 Mini Pack"></div>
-  <button class="btn pri" type="button">Ajouter à « Not Listed »</button>`;
-  el.querySelector("button").onclick=()=>{const nm=el.querySelector("#newName").value.trim(); if(!nm){toast("Indiquez un nom");return}
-    if(!sheetInfo["Avolta-FSU-Not Listed"]){toast("Onglet Not Listed absent du fichier");return}
-    extras.push({name:nm,ean}); saveState(); refreshProgress(); search(ean);};
+  <div class="field"><label class="lbl" for="newSheet">Catégorie (onglet du fichier)</label><select id="newSheet">${sheets.map(s=>`<option value="${esc(s)}"${s===def?" selected":""}>${esc(shortSheet(s))}</option>`).join("")}</select></div>
+  <div class="field"><label class="lbl" for="newSap">Numéro SAP Avolta</label><input id="newSap" type="text" inputmode="numeric" placeholder="Ex. 6901136"></div>
+  <button class="btn pri" type="button">Ajouter le produit</button>`;
+  el.querySelector("button.pri").onclick=()=>{const nm=el.querySelector("#newName").value.trim(); if(!nm){toast("Indiquez un nom");return}
+    const sap=el.querySelector("#newSap").value.replace(/\s/g,""); const sh=el.querySelector("#newSheet").value;
+    if(!sheetInfo[sh]){toast("Onglet introuvable dans le fichier");return}
+    extras.push({name:nm,ean,sap,sheet:sh}); saveState(); refreshProgress(); toast("Ajouté à "+shortSheet(sh)); search(ean);};
   out.appendChild(el);
 }
 $("#q").addEventListener("input",e=>search(e.target.value));
 $("#q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); search(e.target.value);} });
 
 /* ---------- camera scan ---------- */
-let stream=null, zreader=null, scanning=false, detector=null;
-const FORMATS=["ean_13","ean_8","upc_a","upc_e","code_128"];
+let stream=null, zreader=null, scanning=false, detector=null, lastRead=null, lastCount=0;
+const FORMATS=["ean_13","ean_8","upc_a","upc_e"];
 function onCode(code){ stopScan(); $("#q").value=code; search(code); if(navigator.vibrate)try{navigator.vibrate(60)}catch(e){} }
+// Un code n'est accepté que si sa clé de contrôle est valide ET s'il est lu deux fois de suite.
+function candidate(code){
+  if(!validEan(code)){ lastRead=null; lastCount=0; return }
+  if(code===lastRead) lastCount++; else { lastRead=code; lastCount=1 }
+  $("#scanMsg").textContent="Lecture : "+code;
+  if(lastCount>=2) onCode(code);
+}
+async function tuneTrack(track){
+  let caps={}; try{ caps=track.getCapabilities?track.getCapabilities():{} }catch(e){}
+  if(caps.focusMode&&caps.focusMode.includes("continuous")) try{ await track.applyConstraints({advanced:[{focusMode:"continuous"}]}) }catch(e){}
+  const z=$("#zoomIn"), tb=$("#torchBtn"); z.hidden=true; tb.hidden=true;
+  if(caps.zoom){ z.min=caps.zoom.min; z.max=caps.zoom.max; z.step=caps.zoom.step||0.1; const init=Math.min(caps.zoom.max,Math.max(caps.zoom.min,1.5)); z.value=init;
+    try{ await track.applyConstraints({advanced:[{zoom:init}]}) }catch(e){} z.hidden=false; z.oninput=()=>track.applyConstraints({advanced:[{zoom:parseFloat(z.value)}]}).catch(()=>{}); }
+  if(caps.torch){ tb.hidden=false; let on=false; tb.textContent="Lampe"; tb.onclick=async()=>{ on=!on; try{ await track.applyConstraints({advanced:[{torch:on}]}); tb.textContent=on?"Lampe allumée":"Lampe" }catch(e){} }; }
+}
+function camError(err){
+  const n=(err&&err.name)||"";
+  if(n==="NotAllowedError"||n==="SecurityError") return "Accès à la caméra refusé. Autorisez la caméra pour ce site dans les réglages du navigateur, puis réessayez.";
+  if(n==="NotFoundError"||n==="OverconstrainedError") return "Aucune caméra trouvée sur cet appareil. Utilisez « Prendre une photo du code ».";
+  if(n==="NotReadableError") return "La caméra est utilisée par une autre application. Fermez-la puis réessayez.";
+  if(n==="NoMediaDevices") return "Caméra impossible : ouvrez la page avec le lien https:// (github.io), pas depuis un fichier.";
+  if(n==="NoDecoder") return "Lecteur de codes non chargé. Vérifiez la connexion internet et rechargez la page.";
+  return "Caméra indisponible ("+(n||"erreur")+"). Utilisez « Prendre une photo du code » ou saisissez l'EAN.";
+}
 async function startScan(){
-  $("#scan").hidden=false; $("#scanMsg").textContent="Placez le code-barres dans le cadre";
+  lastRead=null; lastCount=0; $("#scan").hidden=false; $("#scanMsg").textContent="Placez le code-barres dans le cadre"; $("#zoomIn").hidden=true; $("#torchBtn").hidden=true;
+  const cons={audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}};
   try{
-    if("BarcodeDetector" in window){
-      detector=new BarcodeDetector({formats:FORMATS});
-      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});
-      const v=$("#vid"); v.srcObject=stream; await v.play(); scanning=true;
-      const tick=async()=>{ if(!scanning)return; try{const r=await detector.detect(v); if(r.length){onCode(r[0].rawValue);return}}catch(e){} setTimeout(tick,150)}; tick();
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ const e=new Error("insecure"); e.name="NoMediaDevices"; throw e; }
+    let native=false;
+    if("BarcodeDetector" in window){ try{ const sup=await BarcodeDetector.getSupportedFormats(); const f=FORMATS.filter(x=>sup.includes(x)); if(f.includes("ean_13")){ detector=new BarcodeDetector({formats:f}); native=true } }catch(e){} }
+    const v=$("#vid"); v.setAttribute("playsinline",""); v.muted=true;
+    if(native){
+      stream=await navigator.mediaDevices.getUserMedia(cons); v.srcObject=stream; await v.play(); scanning=true; tuneTrack(stream.getVideoTracks()[0]);
+      const tick=async()=>{ if(!scanning)return; try{ const r=await detector.detect(v); for(const x of r){ if(validEan(x.rawValue)){ candidate(x.rawValue); break } } }catch(e){} if(scanning) setTimeout(tick,120)}; tick();
     } else if(window.ZXing){
-      scanning=true; zreader=new ZXing.BrowserMultiFormatReader();
-      await zreader.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},$("#vid"),(res)=>{ if(res&&scanning) onCode(res.getText()); });
-    } else throw new Error("no-decoder");
+      const hints=new Map(); hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.EAN_13,ZXing.BarcodeFormat.EAN_8,ZXing.BarcodeFormat.UPC_A,ZXing.BarcodeFormat.UPC_E]); hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+      scanning=true; zreader=new ZXing.BrowserMultiFormatReader(hints,120);
+      await zreader.decodeFromConstraints(cons,v,(res)=>{ if(res&&scanning) candidate(res.getText()); });
+      setTimeout(()=>{ try{ const s=v.srcObject; if(s&&scanning) tuneTrack(s.getVideoTracks()[0]) }catch(e){} },700);
+    } else { const e=new Error("no decoder"); e.name="NoDecoder"; throw e; }
   }catch(err){
-    stopScan(); toast("Caméra indisponible ici. Utilisez « Prendre une photo du code » ou saisissez l'EAN.",4500);
+    console.error(err); stopScan(); toast(camError(err),7000);
   }
 }
 function stopScan(){
   scanning=false; $("#scan").hidden=true;
   try{ if(zreader){zreader.reset();zreader=null} }catch(e){}
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
-  const v=$("#vid"); try{v.pause();v.srcObject=null}catch(e){}
+  const v=$("#vid"); try{ const s=v.srcObject; if(s&&s.getTracks)s.getTracks().forEach(t=>t.stop()); v.pause();v.srcObject=null}catch(e){}
 }
 $("#btnScan").onclick=startScan; $("#scanClose").onclick=stopScan;
 
 $("#photoIn").addEventListener("change",async e=>{
   const f=e.target.files[0]; if(!f) return; e.target.value="";
-  const url=URL.createObjectURL(f); let code=null;
+  const url=URL.createObjectURL(f); let code=null, raw=null;
   try{
-    if("BarcodeDetector" in window){ const bmp=await createImageBitmap(f); const r=await new BarcodeDetector({formats:FORMATS}).detect(bmp); if(r.length)code=r[0].rawValue; }
-    if(!code&&window.ZXing){ const rd=new ZXing.BrowserMultiFormatReader(); const r=await rd.decodeFromImageUrl(url); code=r.getText(); }
+    if("BarcodeDetector" in window){ try{ const bmp=await createImageBitmap(f); const r=await new BarcodeDetector().detect(bmp); const ok=r.find(x=>validEan(x.rawValue)); if(ok)code=ok.rawValue; else if(r.length)raw=r[0].rawValue; }catch(e2){} }
+    if(!code&&window.ZXing){ const hints=new Map(); hints.set(ZXing.DecodeHintType.TRY_HARDER,true); const rd=new ZXing.BrowserMultiFormatReader(hints); const r=await rd.decodeFromImageUrl(url); const c=r.getText(); if(validEan(c))code=c; else raw=raw||c; }
   }catch(err){}
   URL.revokeObjectURL(url);
-  if(code){$("#q").value=code;search(code)} else toast("Code non lu. Rapprochez-vous, bien à plat, ou saisissez l'EAN.",4000);
+  if(code){$("#q").value=code;search(code)} else if(raw){ $("#q").value=raw; search(raw); toast("Lecture douteuse : vérifiez les chiffres",4500) } else toast("Code non lu. Rapprochez-vous, bien à plat, ou saisissez l'EAN.",4500);
 });
 
 /* ---------- list ---------- */
@@ -361,8 +409,9 @@ function renderList(){
     const k=key(p), cur=counts[k], st=status(p,cur);
     const it=document.createElement("div"); it.className="item";
     const last=p.hist.length?p.hist[p.hist.length-1]:null;
-    it.innerHTML=`<div class="nm">${esc(p.name)}</div><div class="sub"><span class="mono">${esc(p.ean)}</span>${p.min!=null?" · min "+esc(p.min):""}${last?" · dernier "+esc(last.v):""}</div><div class="v"><input class="vin ${st}" type="text" inputmode="numeric" value="${cur==null?"":cur}" placeholder="–" aria-label="Stock ${esc(p.name)}"></div>`;
-    const inp=it.querySelector("input");
+    it.innerHTML=`<div class="nm" style="display:flex;gap:10px;align-items:center"><button class="thumb sm" type="button" data-ean="${esc(p.ean)}" data-name="${esc(p.name)}" aria-label="Photo du produit"></button><span style="min-width:0">${esc(p.name)}</span></div><div class="sub"><span class="mono">${esc(p.ean)}</span>${p.min!=null?" · min "+esc(p.min):""}${last?" · dernier "+esc(last.v):""}</div><div class="v"><input class="vin ${st}" type="text" inputmode="numeric" value="${cur==null?"":cur}" placeholder="–" aria-label="Stock ${esc(p.name)}"></div>`;
+    fillThumb(it.querySelector(".thumb"));
+    const inp=it.querySelector("input.vin");
     inp.addEventListener("change",()=>{const t=inp.value.trim(); if(t===""){delete counts[k]} else if(/^oos$/i.test(t)||t==="0"&&false){counts[k]="OOS"} else {const n=parseInt(t,10); if(isNaN(n)){toast("Nombre ou OOS");inp.value=cur??"";return} counts[k]=n}
       saveState(); refreshProgress(); const s2=status(p,counts[k]); inp.className="vin "+s2;});
     body.appendChild(it);
@@ -388,9 +437,13 @@ async function buildXlsx(){
     if(!reuse){ for(let r=1;r<=lastRow;r++){ const src=ws.getRow(r).getCell(info.lastCol), dst=ws.getRow(r).getCell(col); try{dst.style=JSON.parse(JSON.stringify(src.style||{}))}catch(e){} } ws.getColumn(col).width=ws.getColumn(info.lastCol).width||12; }
     info.hdrRows.forEach(r=>{const c=ws.getRow(r).getCell(col); c.value=date;});
     products.filter(p=>p.sheet===name).forEach(p=>{const v=counts[key(p)]; if(v!=null) ws.getRow(p.row).getCell(col).value=v;});
-    if(name==="Avolta-FSU-Not Listed"){ let r=lastRow; const tpl=ws.getRow(Math.max(2,lastRow));
-      extras.forEach(x=>{r++; const row=ws.getRow(r); tpl.eachCell({includeEmpty:true},(c,ci)=>{try{row.getCell(ci).style=JSON.parse(JSON.stringify(c.style||{}))}catch(e){}});
-        row.getCell(1).value=x.name; row.getCell(2).value=x.ean; const v=counts[key({extra:true,ean:x.ean})]; if(v!=null) row.getCell(col).value=v; row.commit&&row.commit();}); }
+    const ex=extras.filter(x=>extraSheet(x)===name);
+    if(ex.length){ let r=lastRow; const tpl=ws.getRow(info.lastProd||Math.max(2,lastRow)); const cE=info.cols.ean||2, cS=info.cols.sap;
+      const typed=(cell,val)=>(typeof cell.value==="number"&&/^\d{1,15}$/.test(val))?Number(val):val;
+      ex.forEach(x=>{r++; const row=ws.getRow(r); if(tpl.height)row.height=tpl.height;
+        tpl.eachCell({includeEmpty:true},(c,ci)=>{try{row.getCell(ci).style=JSON.parse(JSON.stringify(c.style||{}))}catch(e){}});
+        row.getCell(1).value=x.name; row.getCell(cE).value=typed(tpl.getCell(cE),x.ean); if(x.sap&&cS) row.getCell(cS).value=typed(tpl.getCell(cS),x.sap);
+        const v=counts[key({extra:true,ean:x.ean})]; if(v!=null) row.getCell(col).value=v; row.commit&&row.commit();}); }
   }
   return w.xlsx.writeBuffer();
 }
@@ -422,11 +475,46 @@ $("#btnReset").onclick=function(){ if(this.dataset.arm!=="1"){this.dataset.arm="
 $("#visitDate").addEventListener("change",()=>{saveState();$("#mailSubj").value=subjFor()});
 const subjFor=()=>"Relevé stock OPI Avolta – "+($("#visitDate").value||"").split("-").reverse().join("/");
 
+/* ---------- photos (stockées sur l'appareil) ---------- */
+let _db=null, pendingEan=null; const purl={};
+function pdb(){ if(!_db) _db=new Promise((res,rej)=>{ try{ const r=indexedDB.open("opi-photos",1); r.onupgradeneeded=()=>r.result.createObjectStore("p"); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);}catch(e){rej(e)} }); return _db; }
+async function pget(k){ try{ const d=await pdb(); return await new Promise(res=>{ const q=d.transaction("p").objectStore("p").get(k); q.onsuccess=()=>res(q.result||null); q.onerror=()=>res(null)}) }catch(e){return null} }
+async function pset(k,b){ try{ const d=await pdb(); await new Promise((res,rej)=>{ const t=d.transaction("p","readwrite"); if(b)t.objectStore("p").put(b,k); else t.objectStore("p").delete(k); t.oncomplete=res; t.onerror=()=>rej(t.error)}); return true }catch(e){return false} }
+async function photoUrl(ean){ const k=norm(ean); if(k in purl) return purl[k]; const b=await pget(k); purl[k]=b?URL.createObjectURL(b):null; return purl[k]; }
+async function fillThumb(btn){ if(!btn)return; const u=await photoUrl(btn.dataset.ean); btn.innerHTML=u?'<img alt="" src="'+u+'">':'<span>＋<br>photo</span>'; btn.classList.toggle("has",!!u); }
+function refreshThumbs(){ document.querySelectorAll(".thumb").forEach(fillThumb) }
+function dropCache(ean){ const k=norm(ean); if(purl[k])URL.revokeObjectURL(purl[k]); delete purl[k]; }
+function askPhoto(ean){ pendingEan=ean; $("#shotIn").click(); }
+async function delPhoto(ean){ await pset(norm(ean),null); dropCache(ean); refreshThumbs(); toast("Photo supprimée"); }
+$("#shotIn").addEventListener("change",async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f||!pendingEan) return; const ean=pendingEan;
+  try{ const bmp=await createImageBitmap(f); const s=Math.min(1,640/Math.max(bmp.width,bmp.height)); const c=document.createElement("canvas"); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s); c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+    const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.8)); const ok=await pset(norm(ean),blob); dropCache(ean); refreshThumbs(); toast(ok?"Photo enregistrée":"Enregistrement impossible ici"); }
+  catch(err){ toast("Photo illisible"); }
+});
+const bubble=document.createElement("div"); bubble.id="bubble"; bubble.hidden=true; document.body.appendChild(bubble); let bubbleFor=null;
+async function showBubble(btn){
+  const u=await photoUrl(btn.dataset.ean); if(!u){ askPhoto(btn.dataset.ean); return }
+  bubbleFor=btn; bubble.innerHTML='<img alt="" src="'+u+'"><div class="bn">'+esc(btn.dataset.name)+'</div><div class="ba"><button type="button" class="btn sm" data-a="chg">Changer</button><button type="button" class="btn sm" data-a="del">Supprimer</button></div>';
+  bubble.hidden=false; const r=btn.getBoundingClientRect(), w=bubble.offsetWidth, h=bubble.offsetHeight;
+  const x=Math.min(Math.max(8,r.left),innerWidth-w-8); let y=r.bottom+8; if(y+h>innerHeight-80) y=Math.max(8,r.top-h-8);
+  bubble.style.left=x+"px"; bubble.style.top=y+"px";
+}
+function hideBubble(){ bubble.hidden=true; bubbleFor=null }
+document.addEventListener("click",e=>{
+  const t=e.target.closest(".thumb"); if(t){ if(bubbleFor===t)hideBubble(); else showBubble(t); return }
+  const a=e.target.closest("#bubble [data-a]"); if(a&&bubbleFor){ const ean=bubbleFor.dataset.ean; hideBubble(); if(a.dataset.a==="chg")askPhoto(ean); else delPhoto(ean); return }
+  if(!e.target.closest("#bubble")) hideBubble();
+});
+document.addEventListener("mouseover",e=>{ if(!matchMedia("(hover:hover)").matches)return; const t=e.target.closest(".thumb.has"); if(t&&bubbleFor!==t)showBubble(t); });
+window.addEventListener("scroll",hideBubble,{passive:true});
+
 /* ---------- tabs ---------- */
 function tab(n){ ["scan","list","send"].forEach(t=>{ $("#tab-"+t).hidden=t!==n; $("#nav-"+t).setAttribute("aria-selected",t===n)}); if(n==="list")renderList(); if(n==="send")summary(); window.scrollTo(0,0)}
 ["scan","list","send"].forEach(t=>$("#nav-"+t).onclick=()=>tab(t));
 
 function afterLoad(){ refreshProgress(); $("#results").innerHTML=""; renderList(); summary(); }
+function bootError(m){ fileName='Erreur'; $("#results").innerHTML='<div class="card"><div class="cname">Chargement impossible</div><p class="hint" style="margin:0">'+esc(m)+'</p></div>'; }
 function noFile(){ fileName="Aucun fichier chargé"; $("#results").innerHTML='<div class="card"><div class="cname">Chargez votre fichier Excel</div><p class="hint" style="margin:0">Allez dans l\'onglet Envoi, puis « Charger un autre fichier Excel » et choisissez votre planogramme. Il reste sur votre appareil et sera mémorisé.</p></div>'; }
 (async function boot(){
   $("#visitDate").value=new Date().toISOString().slice(0,10);
@@ -435,8 +523,8 @@ function noFile(){ fileName="Aucun fichier chargé"; $("#results").innerHTML='<d
   try{
     const stored=LS.get("opi.base");
     if(stored) await loadBuffer(b64ToBuf(stored),LS.get("opi.baseName")||"fichier.xlsx"); else if(TEMPLATE_B64) await loadBuffer(b64ToBuf(TEMPLATE_B64),TEMPLATE_NAME); else noFile();
-  }catch(e){ if(TEMPLATE_B64) await loadBuffer(b64ToBuf(TEMPLATE_B64),TEMPLATE_NAME); else noFile(); }
-  restoreState(); $("#mailSubj").value=subjFor(); afterLoad(); if(!products.length) noFile(); $("#fileName").textContent=fileName;
+  }catch(e){ console.error(e); if(typeof ExcelJS==='undefined'){ bootError('Bibliothèque Excel non chargée. Vérifiez la connexion internet puis rechargez la page.'); } else { try{ if(TEMPLATE_B64) await loadBuffer(b64ToBuf(TEMPLATE_B64),TEMPLATE_NAME); else noFile(); }catch(e2){ bootError('Lecture impossible ('+(e2&&e2.message)+')'); } } }
+  restoreState(); $("#mailSubj").value=subjFor(); afterLoad(); if(!products.length && fileName!=="Erreur") noFile(); $("#fileName").textContent=fileName;
 })();
 </script>
 </body></html>
